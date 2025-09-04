@@ -81,11 +81,12 @@ jobs:
           key: fetchcontent-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
       # ---------- Configure compilers ----------
-      - name: Set CC/CXX (Ubuntu/macOS)
+      - name: Set CC/CXX (Ubuntu)
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           echo "CC=gcc"     >> $GITHUB_ENV
           echo "CXX=g++"    >> $GITHUB_ENV
+      - name: Set CC/CXX (macOS)
         if: startsWith(matrix.os, 'macos')
         run: |
           if [ "${{ matrix.compiler }}" = "clang" ]; then

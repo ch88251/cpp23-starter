@@ -9,7 +9,6 @@ project(cpp23_starter
 # --- Defaults
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Build options
 option(BUILD_TESTING "Build tests" ON)

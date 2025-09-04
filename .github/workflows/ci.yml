@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-test:
+    name: ${{ matrix.os }} • ${{ matrix.compiler }} • ${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        build_type: [Debug, Release]
+        compiler: [gcc, clang, msvc]
+        exclude:
+          # macOS: use AppleClang only
+          - os: macos-latest
+            compiler: gcc
+          - os: macos-latest
+            compiler: msvc
+          # Windows: MSVC only
+          - os: windows-latest
+            compiler: gcc
+          - os: windows-latest
+            compiler: clang
+          # Ubuntu supports gcc & clang (both keep)
+
+    env:
+      BUILD_DIR: build
+      FC_DIR: ${{ github.workspace }}/.fc   # cache for FetchContent
+      CTEST_OUTPUT_ON_FAILURE: 1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---------- OS-specific dependencies ----------
+      - name: Install deps (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build ccache
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            sudo apt-get install -y clang
+          else
+            sudo apt-get install -y g++
+          fi
+
+      - name: Install deps (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew update
+          brew install ninja ccache
+
+      - name: Install deps (Windows)
+        if: startsWith(matrix.os, 'windows')
+        uses: microsoft/setup-msbuild@v2
+      - name: Install ninja + ccache (Windows)
+        if: startsWith(matrix.os, 'windows')
+        shell: pwsh
+        run: |
+          choco install ninja -y
+          choco install ccache -y
+
+      # ---------- Cache ccache ----------
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ccache
+            C:\Users\runneradmin\AppData\Local\ccache
+          key: ccache-${{ runner.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}-
+            ccache-${{ runner.os }}-${{ matrix.compiler }}-
+            ccache-${{ runner.os }}-
+
+      # ---------- Cache FetchContent ----------
+      - name: Cache FetchContent deps
+        uses: actions/cache@v4
+        with:
+          path: .fc
+          key: fetchcontent-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      # ---------- Configure compilers ----------
+      - name: Set CC/CXX (Ubuntu/macOS)
+        if: startsWith(matrix.os, 'ubuntu') || startsWith(matrix.os, 'macos')
+        run: |
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            echo "CC=clang"   >> $GITHUB_ENV
+            echo "CXX=clang++" >> $GITHUB_ENV
+          elif [ "${{ matrix.compiler }}" = "gcc" ]; then
+            echo "CC=gcc"     >> $GITHUB_ENV
+            echo "CXX=g++"    >> $GITHUB_ENV
+          fi
+
+      # ---------- Configure (CMake) ----------
+      - name: Configure (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cmake -S . -B $BUILD_DIR \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_FETCHCONTENT_BASE_DIR=$FC_DIR
+      - name: Configure (Windows, MSVC)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake -S . -B $env:BUILD_DIR `
+            -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_FETCHCONTENT_BASE_DIR=$env:FC_DIR
+
+      # ---------- Build ----------
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        run: cmake --build $BUILD_DIR --config ${{ matrix.build_type }} -j 2
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cmake --build $env:BUILD_DIR --config ${{ matrix.build_type }} -m
+
+      # ---------- Test ----------
+      - name: Test (Unix)
+        if: runner.os != 'Windows'
+        run: ctest --test-dir $BUILD_DIR --output-on-failure
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        run: ctest --test-dir $env:BUILD_DIR -C ${{ matrix.build_type }} --output-on-failure
+
+      # ---------- Upload logs on failure ----------
+      - name: Upload CMake files (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmake-logs-${{ matrix.os }}-${{ matrix.compiler }}-${{ matrix.build_type }}
+          path: |
+            ${{ env.BUILD_DIR }}/CMakeCache.txt
+            ${{ env.BUILD_DIR }}/CMakeFiles/**/CMakeOutput.log
+            ${{ env.BUILD_DIR }}/CMakeFiles/**/CMakeError.log
+

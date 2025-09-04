@@ -42,11 +42,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build ccache
-          if [ "${{ matrix.compiler }}" = "clang" ]; then
-            sudo apt-get install -y clang-17
-          else
-            sudo apt-get install -y g++
-          fi
+          sudo apt-get install -y g++
 
       - name: Install deps (macOS)
         if: startsWith(matrix.os, 'macos')
@@ -86,7 +82,11 @@ jobs:
 
       # ---------- Configure compilers ----------
       - name: Set CC/CXX (Ubuntu/macOS)
-        if: startsWith(matrix.os, 'ubuntu') || startsWith(matrix.os, 'macos')
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          echo "CC=gcc"     >> $GITHUB_ENV
+          echo "CXX=g++"    >> $GITHUB_ENV
+        if: startsWith(matrix.os, 'macos')
         run: |
           if [ "${{ matrix.compiler }}" = "clang" ]; then
             echo "CC=clang"   >> $GITHUB_ENV

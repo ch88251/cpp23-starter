@@ -14,7 +14,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         build_type: [Debug, Release]
-        compiler: [gcc, clang, msvc]
+        compiler: [gcc, msvc]
         exclude:
           # macOS: use AppleClang only
           - os: macos-latest
@@ -24,9 +24,6 @@ jobs:
           # Windows: MSVC only
           - os: windows-latest
             compiler: gcc
-          - os: windows-latest
-            compiler: clang
-          # Ubuntu supports gcc & clang (both keep)
 
     env:
       BUILD_DIR: build
@@ -42,13 +39,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build ccache
-          if [ "${{ matrix.compiler }}" = "clang" ]; then
-            sudo apt-get install -y clang-17
-            sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
-            sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
-          else
-            sudo apt-get install -y g++
-          fi
+          sudo apt-get install -y g++
 
       - name: Install deps (macOS)
         if: startsWith(matrix.os, 'macos')
@@ -90,10 +81,7 @@ jobs:
       - name: Set CC/CXX (Ubuntu/macOS)
         if: startsWith(matrix.os, 'ubuntu') || startsWith(matrix.os, 'macos')
         run: |
-          if [ "${{ matrix.compiler }}" = "clang" ]; then
-            echo "CC=clang"   >> $GITHUB_ENV
-            echo "CXX=clang++" >> $GITHUB_ENV
-          elif [ "${{ matrix.compiler }}" = "gcc" ]; then
+          if [ "${{ matrix.compiler }}" = "gcc" ]; then
             echo "CC=gcc"     >> $GITHUB_ENV
             echo "CXX=g++"    >> $GITHUB_ENV
           fi

@@ -120,7 +120,7 @@ jobs:
         run: cmake --build $BUILD_DIR --config ${{ matrix.build_type }} -j 2
       - name: Build (Windows)
         if: runner.os == 'Windows'
-        run: cmake --build $env:BUILD_DIR --config ${{ matrix.build_type }} -m
+        run: cmake --build $env:BUILD_DIR --config ${{ matrix.build_type }} 
 
       # ---------- Test ----------
       - name: Test (Unix)

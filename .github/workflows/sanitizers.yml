@@ -1,0 +1,35 @@
+name: Sanitizers
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  asan-ubsan:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_DIR: build-sanitizers
+      CTEST_OUTPUT_ON_FAILURE: 1
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-17 ninja-build ccache
+      - uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: asan-ccache-${{ hashFiles('**/*') }}
+          restore-keys: asan-ccache-
+      - run: |
+          cmake -S . -B $BUILD_DIR -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DENABLE_ASAN=ON -DENABLE_UBSAN=ON \
+            -DCMAKE_FETCHCONTENT_BASE_DIR=${{ github.workspace }}/.fc
+          cmake --build $BUILD_DIR -j 2
+          ASAN_OPTIONS=check_initialization_order=1:strict_string_checks=1 \
+          UBSAN_OPTIONS=print_stacktrace=1 \
+          ctest --test-dir $BUILD_DIR --output-on-failure
+
